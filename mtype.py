@@ -131,7 +131,15 @@ def setup_colors():
 
 
 def gen_words(pool, count):
-    return [random.choice(pool) for _ in range(count)]
+    if len(set(pool)) <= 1:
+        return list(pool[:1]) * count if pool else []
+    out = []
+    for _ in range(count):
+        w = random.choice(pool)
+        while out and w == out[-1]:
+            w = random.choice(pool)
+        out.append(w)
+    return out
 
 
 def wrap_target(target, width):
@@ -255,7 +263,7 @@ def render_test(stdscr, test):
             left = f"{int(remaining)}"
     else:
         prefix = test.target[: len(test.typed)]
-        done = prefix.count(" ") + (1 if test.typed else 0)
+        done = prefix.count(" ") + (1 if len(test.typed) == len(test.target) else 0)
         done = min(done, test.limit)
         left = f"{done}/{test.limit}"
 
@@ -293,11 +301,16 @@ def render_test(stdscr, test):
                     display = "_" if ch == " " else ch
                     safe_addstr(stdscr, y, x, display,
                                 curses.color_pair(C_WRONG) | curses.A_UNDERLINE)
-            elif abs_idx == len(test.typed):
+            elif abs_idx == cursor_pos:
                 display = " " if ch == " " else ch
                 safe_addstr(stdscr, y, x, display, curses.color_pair(C_CURSOR))
             else:
                 safe_addstr(stdscr, y, x, ch, curses.color_pair(C_DIM))
+        boundary = start + len(line_text)
+        if cursor_pos == boundary and boundary < len(test.target) \
+                and test.target[boundary] == " ":
+            safe_addstr(stdscr, y, margin_x + len(line_text), " ",
+                        curses.color_pair(C_CURSOR))
 
     footer = "tab restart   esc quit"
     safe_addstr(stdscr, h - 2, max(0, (w - len(footer)) // 2),
@@ -347,7 +360,10 @@ def make_test(lang, mode, limit):
 
 
 def run(stdscr, args):
-    curses.curs_set(0)
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
     setup_colors()
     stdscr.bkgd(" ", curses.color_pair(C_FG))
     stdscr.timeout(80)
